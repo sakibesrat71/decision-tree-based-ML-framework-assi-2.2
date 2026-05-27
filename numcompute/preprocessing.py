@@ -120,16 +120,60 @@ class OneHotEncoder:
 
 
 class SimpleImputer:
-    def __init__(self, fill_value=0):
+    def __init__(self, fill_value=0, strategy="constant"):
+        if strategy not in ("constant", "mean"):
+            raise ValueError("strategy must be 'constant' or 'mean'.")
         self.fill_value = fill_value
+        self.strategy = strategy
+        self.counts = None
+        self.sums = None
+        self.statistics = None
 
     def fit(self, X):
+        self.counts = None
+        self.sums = None
+        self.statistics = None
+        return self.partial_fit(X)
+
+    def partial_fit(self, X):
+        X = np.asarray(X, dtype=float)
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+
+        if self.strategy == "constant":
+            self.statistics = np.full(X.shape[1], self.fill_value, dtype=float)
+            return self
+
+        valid_values = ~np.isnan(X)
+        chunk_counts = np.sum(valid_values, axis=0)
+        chunk_sums = np.nansum(X, axis=0)
+
+        if self.counts is None:
+            self.counts = chunk_counts
+            self.sums = chunk_sums
+        else:
+            self.counts += chunk_counts
+            self.sums += chunk_sums
+
+        self.statistics = np.divide(
+            self.sums,
+            self.counts,
+            out=np.full_like(self.sums, self.fill_value, dtype=float),
+            where=self.counts > 0,
+        )
         return self
 
     def transform(self, X):
-        X = np.asarray(X, dtype=float)
-        # replaced NaNs with a constant value
-        X[np.isnan(X)] = self.fill_value
+        if self.statistics is None:
+            raise ValueError("SimpleImputer must be fitted before transform().")
+
+        X = np.asarray(X, dtype=float).copy()
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+
+        # replace NaNs with either the constant value or running column mean
+        rows, cols = np.where(np.isnan(X))
+        X[rows, cols] = self.statistics[cols]
         return X
 
     def fit_transform(self, X):
