@@ -100,13 +100,38 @@ class MinMaxScaler:
 
 
 class OneHotEncoder:
+    def __init__(self):
+        self.categories = None
+
     def fit(self, X):
+        self.categories = None
+        return self.partial_fit(X)
+
+    def partial_fit(self, X):
         X = np.asarray(X)
-        self.categories = [np.unique(X[:, i]) for i in range(X.shape[1])]
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+
+        if self.categories is None:
+            self.categories = [np.unique(X[:, i]) for i in range(X.shape[1])]
+            return self
+
+        if X.shape[1] != len(self.categories):
+            raise ValueError("X has a different number of columns than the fitted encoder.")
+
+        for i in range(X.shape[1]):
+            new_categories = np.unique(X[:, i])
+            self.categories[i] = np.unique(np.concatenate([self.categories[i], new_categories]))
+
         return self
 
     def transform(self, X):
+        if self.categories is None:
+            raise ValueError("OneHotEncoder must be fitted before transform().")
         X = np.asarray(X)
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+
         encoded_cols = []
 
         for i, cats in enumerate(self.categories):
