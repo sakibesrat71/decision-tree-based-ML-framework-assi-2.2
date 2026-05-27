@@ -2,13 +2,57 @@ import numpy as np
 
 
 class StandardScaler:
+    def __init__(self):
+        self.n_samples_seen = 0
+        self.mean = None
+        self.var = None
+        self.std = None
+
     def fit(self, X):
+        self.n_samples_seen = 0
+        self.mean = None
+        self.var = None
+        self.std = None
+        return self.partial_fit(X)
+
+    def partial_fit(self, X):
         X = np.asarray(X, dtype=float)
-        self.mean = np.mean(X, axis=0)
-        self.std = np.std(X, axis=0)
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+
+        chunk_count = X.shape[0]
+        if chunk_count == 0:
+            return self
+
+        chunk_mean = np.mean(X, axis=0)
+        chunk_var = np.var(X, axis=0)
+
+        if self.mean is None:
+            self.n_samples_seen = chunk_count
+            self.mean = chunk_mean
+            self.var = chunk_var
+            self.std = np.sqrt(self.var)
+            return self
+
+        total_count = self.n_samples_seen + chunk_count
+        mean_diff = chunk_mean - self.mean
+        old_sum_squares = self.var * self.n_samples_seen
+        chunk_sum_squares = chunk_var * chunk_count
+        new_sum_squares = (
+            old_sum_squares
+            + chunk_sum_squares
+            + mean_diff**2 * self.n_samples_seen * chunk_count / total_count
+        )
+
+        self.mean = self.mean + mean_diff * chunk_count / total_count
+        self.var = new_sum_squares / total_count
+        self.std = np.sqrt(self.var)
+        self.n_samples_seen = total_count
         return self
 
     def transform(self, X):
+        if self.mean is None:
+            raise ValueError("StandardScaler must be fitted before transform().")
         X = np.asarray(X, dtype=float)
         # this avoid division by zero for constant columns
         return (X - self.mean) / (self.std + 1e-10)
