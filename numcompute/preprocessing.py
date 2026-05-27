@@ -62,13 +62,35 @@ class StandardScaler:
 
 
 class MinMaxScaler:
+    def __init__(self):
+        self.min = None
+        self.max = None
+
     def fit(self, X):
+        self.min = None
+        self.max = None
+        return self.partial_fit(X)
+
+    def partial_fit(self, X):
         X = np.asarray(X, dtype=float)
-        self.min = np.min(X, axis=0)
-        self.max = np.max(X, axis=0)
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+
+        chunk_min = np.min(X, axis=0)
+        chunk_max = np.max(X, axis=0)
+
+        if self.min is None:
+            self.min = chunk_min
+            self.max = chunk_max
+        else:
+            self.min = np.minimum(self.min, chunk_min)
+            self.max = np.maximum(self.max, chunk_max)
+
         return self
 
     def transform(self, X):
+        if self.min is None:
+            raise ValueError("MinMaxScaler must be fitted before transform().")
         X = np.asarray(X, dtype=float)
         # scale features to 0, 1
         return (X - self.min) / (self.max - self.min + 1e-10)
