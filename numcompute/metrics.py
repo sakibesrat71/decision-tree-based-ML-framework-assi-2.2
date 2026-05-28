@@ -83,7 +83,8 @@ def roc_curve(y_true, y_scores):
 
 
 def auc(fpr, tpr):
-    return np.trapz(tpr, fpr)
+    order = np.argsort(fpr)
+    return np.trapezoid(np.asarray(tpr)[order], np.asarray(fpr)[order])
 
 
 class StreamingClassificationMetrics:
@@ -96,9 +97,10 @@ class StreamingClassificationMetrics:
     def reset(self):
         self.y_true = []
         self.y_pred = []
+        self.y_score = []
         return self
 
-    def update(self, y_true_chunk, y_pred_chunk):
+    def update(self, y_true_chunk, y_pred_chunk, y_score_chunk=None):
         y_true_chunk = np.asarray(y_true_chunk).ravel()
         y_pred_chunk = np.asarray(y_pred_chunk).ravel()
 
@@ -107,10 +109,17 @@ class StreamingClassificationMetrics:
 
         self.y_true.extend(y_true_chunk.tolist())
         self.y_pred.extend(y_pred_chunk.tolist())
+        if y_score_chunk is not None:
+            y_score_chunk = np.asarray(y_score_chunk, dtype=float).ravel()
+            if y_score_chunk.shape[0] != y_true_chunk.shape[0]:
+                raise ValueError("y_score_chunk must have the same length as y_true_chunk.")
+            self.y_score.extend(y_score_chunk.tolist())
 
         if self.window_size is not None:
             self.y_true = self.y_true[-self.window_size:]
             self.y_pred = self.y_pred[-self.window_size:]
+            if self.y_score:
+                self.y_score = self.y_score[-self.window_size:]
 
         return self
 
@@ -122,15 +131,23 @@ class StreamingClassificationMetrics:
                 "recall": 0.0,
                 "f1": 0.0,
                 "confusion_matrix": np.zeros((2, 2), dtype=int),
+                "auc": None,
             }
 
         y_true = np.asarray(self.y_true)
         y_pred = np.asarray(self.y_pred)
 
-        return {
+        metrics = {
             "accuracy": accuracy(y_true, y_pred),
             "precision": precision(y_true, y_pred),
             "recall": recall(y_true, y_pred),
             "f1": f1(y_true, y_pred),
             "confusion_matrix": confusion_matrix(y_true, y_pred),
+            "auc": None,
         }
+
+        if len(self.y_score) == len(self.y_true) and len(np.unique(y_true)) == 2:
+            fpr, tpr, _ = roc_curve(y_true, np.asarray(self.y_score, dtype=float))
+            metrics["auc"] = auc(fpr, tpr)
+
+        return metrics
