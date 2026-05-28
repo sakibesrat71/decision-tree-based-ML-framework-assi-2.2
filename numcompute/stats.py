@@ -44,10 +44,13 @@ def quantiles(x, q):
 class StreamingStats:
     """Track running mean and variance from incoming chunks."""
 
-    def __init__(self):
+    def __init__(self, bins=10, value_range=None):
+        self.bins = bins
+        self.value_range = value_range
         self.count = 0
         self.mean = None
         self.m2 = None
+        self.values = []
 
     def update_stats(self, X_chunk):
         X = np.asarray(X_chunk, dtype=float)
@@ -57,6 +60,7 @@ class StreamingStats:
         X = X[~np.isnan(X).any(axis=1)]
         if X.shape[0] == 0:
             return self
+        self.values.extend(X.tolist())
 
         chunk_count = X.shape[0]
         chunk_mean = np.mean(X, axis=0)
@@ -84,6 +88,18 @@ class StreamingStats:
             "mean": self.mean,
             "variance": self.m2 / self.count,
         }
+
+    def quantiles(self, q):
+        if not self.values:
+            return None
+        values = np.asarray(self.values, dtype=float)
+        return np.quantile(values, q, axis=0)
+
+    def histogram(self):
+        if not self.values:
+            return None
+        values = np.asarray(self.values, dtype=float).ravel()
+        return np.histogram(values, bins=self.bins, range=self.value_range)
 
 
 def update_stats(X_chunk, stats_obj=None):
