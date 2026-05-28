@@ -84,3 +84,47 @@ def roc_curve(y_true, y_scores):
 
 def auc(fpr, tpr):
     return np.trapz(tpr, fpr)
+
+
+class StreamingClassificationMetrics:
+    """Accumulate binary classification metrics over data chunks."""
+
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.y_true = []
+        self.y_pred = []
+        return self
+
+    def update(self, y_true_chunk, y_pred_chunk):
+        y_true_chunk = np.asarray(y_true_chunk).ravel()
+        y_pred_chunk = np.asarray(y_pred_chunk).ravel()
+
+        if y_true_chunk.shape[0] != y_pred_chunk.shape[0]:
+            raise ValueError("y_true_chunk and y_pred_chunk must have the same length.")
+
+        self.y_true.extend(y_true_chunk.tolist())
+        self.y_pred.extend(y_pred_chunk.tolist())
+        return self
+
+    def result(self):
+        if not self.y_true:
+            return {
+                "accuracy": 0.0,
+                "precision": 0.0,
+                "recall": 0.0,
+                "f1": 0.0,
+                "confusion_matrix": np.zeros((2, 2), dtype=int),
+            }
+
+        y_true = np.asarray(self.y_true)
+        y_pred = np.asarray(self.y_pred)
+
+        return {
+            "accuracy": accuracy(y_true, y_pred),
+            "precision": precision(y_true, y_pred),
+            "recall": recall(y_true, y_pred),
+            "f1": f1(y_true, y_pred),
+            "confusion_matrix": confusion_matrix(y_true, y_pred),
+        }
