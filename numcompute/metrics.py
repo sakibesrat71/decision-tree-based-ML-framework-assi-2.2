@@ -89,7 +89,8 @@ def auc(fpr, tpr):
 class StreamingClassificationMetrics:
     """Accumulate binary classification metrics over data chunks."""
 
-    def __init__(self):
+    def __init__(self, window_size=None):
+        self.window_size = window_size
         self.reset()
 
     def reset(self):
@@ -106,6 +107,11 @@ class StreamingClassificationMetrics:
 
         self.y_true.extend(y_true_chunk.tolist())
         self.y_pred.extend(y_pred_chunk.tolist())
+
+        if self.window_size is not None:
+            self.y_true = self.y_true[-self.window_size:]
+            self.y_pred = self.y_pred[-self.window_size:]
+
         return self
 
     def result(self):
