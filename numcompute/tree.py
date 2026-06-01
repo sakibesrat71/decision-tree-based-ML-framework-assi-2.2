@@ -15,6 +15,8 @@ class DecisionTreeClassifier:
         self.root = None
         self.classes = None
         self.feature_medians = None
+        self._X_seen = None
+        self._y_seen = None
         self.rng = np.random.default_rng(random_state)
 
     def fit(self, X, y):
@@ -24,6 +26,18 @@ class DecisionTreeClassifier:
         X = self._fill_missing(X)
         self.root = self._build_tree(X, y, depth=0)
         return self
+
+    def partial_fit(self, X_chunk, y_chunk):
+        X_chunk, y_chunk = self._validate_xy(X_chunk, y_chunk)
+
+        if self._X_seen is None:
+            self._X_seen = X_chunk.copy()
+            self._y_seen = y_chunk.copy()
+        else:
+            self._X_seen = np.vstack([self._X_seen, X_chunk])
+            self._y_seen = np.concatenate([self._y_seen, y_chunk])
+
+        return self.fit(self._X_seen, self._y_seen)
 
     def predict(self, X):
         if self.root is None:
