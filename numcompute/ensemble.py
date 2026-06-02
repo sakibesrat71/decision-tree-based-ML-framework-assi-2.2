@@ -51,6 +51,26 @@ class EnsembleClassifier:
         predictions = np.vstack([tree.predict(X) for tree in self.trees])
         return np.apply_along_axis(self._majority_vote, axis=0, arr=predictions)
 
+    def partial_fit(self, X_chunk, y_chunk):
+        X_chunk = np.asarray(X_chunk, dtype=float)
+        y_chunk = np.asarray(y_chunk).ravel()
+        if X_chunk.ndim == 1:
+            X_chunk = X_chunk.reshape(-1, 1)
+        if X_chunk.shape[0] != y_chunk.shape[0]:
+            raise ValueError("X_chunk and y_chunk must contain the same number of rows.")
+
+        if not self.trees:
+            self.classes = np.unique(y_chunk)
+            self.trees = self._make_trees()
+        else:
+            self.classes = np.unique(np.concatenate([self.classes, np.unique(y_chunk)]))
+
+        for tree in self.trees:
+            X_sample, y_sample = self._sample_rows(X_chunk, y_chunk)
+            tree.partial_fit(X_sample, y_sample)
+
+        return self
+
     def _make_trees(self):
         seeds = self.rng.integers(0, 1_000_000, size=self.n_estimators)
         trees = []
