@@ -51,6 +51,13 @@ class EnsembleClassifier:
         predictions = np.vstack([tree.predict(X) for tree in self.trees])
         return np.apply_along_axis(self._majority_vote, axis=0, arr=predictions)
 
+    def predict_proba(self, X):
+        if not self.trees:
+            raise ValueError("EnsembleClassifier must be fitted before predict_proba().")
+
+        probabilities = [self._align_probabilities(tree, X) for tree in self.trees]
+        return np.mean(probabilities, axis=0)
+
     def partial_fit(self, X_chunk, y_chunk):
         X_chunk = np.asarray(X_chunk, dtype=float)
         y_chunk = np.asarray(y_chunk).ravel()
@@ -95,3 +102,14 @@ class EnsembleClassifier:
     def _majority_vote(self, predictions):
         values, counts = np.unique(predictions, return_counts=True)
         return values[np.argmax(counts)]
+
+    def _align_probabilities(self, tree, X):
+        tree_probabilities = tree.predict_proba(X)
+        aligned = np.zeros((tree_probabilities.shape[0], len(self.classes)))
+
+        for source_index, class_value in enumerate(tree.classes):
+            target_index = np.where(self.classes == class_value)[0]
+            if target_index.size:
+                aligned[:, target_index[0]] = tree_probabilities[:, source_index]
+
+        return aligned
