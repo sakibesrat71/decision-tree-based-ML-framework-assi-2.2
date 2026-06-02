@@ -48,6 +48,15 @@ class DecisionTreeClassifier:
         X = self._fill_missing(X)
         return np.array([self._predict_one(row, self.root) for row in X])
 
+    def predict_proba(self, X):
+        if self.root is None:
+            raise ValueError("DecisionTreeClassifier must be fitted before predict_proba().")
+        X = np.asarray(X, dtype=float)
+        if X.ndim == 1:
+            X = X.reshape(1, -1)
+        X = self._fill_missing(X)
+        return np.vstack([self._leaf_probabilities(row, self.root) for row in X])
+
     def _validate_xy(self, X, y):
         X = np.asarray(X, dtype=float)
         y = np.asarray(y)
@@ -71,7 +80,10 @@ class DecisionTreeClassifier:
         return X
 
     def _build_tree(self, X, y, depth):
-        node = {"prediction": self._majority_class(y)}
+        node = {
+            "prediction": self._majority_class(y),
+            "counts": self._class_counts(y),
+        }
 
         if depth >= self.max_depth or X.shape[0] < self.min_samples_split or np.unique(y).size == 1:
             return node
@@ -143,9 +155,25 @@ class DecisionTreeClassifier:
         values, counts = np.unique(y, return_counts=True)
         return values[np.argmax(counts)]
 
+    def _class_counts(self, y):
+        counts = np.zeros(len(self.classes), dtype=float)
+        for i, class_value in enumerate(self.classes):
+            counts[i] = np.sum(y == class_value)
+        return counts
+
     def _predict_one(self, row, node):
         if "feature" not in node:
             return node["prediction"]
         if row[node["feature"]] <= node["threshold"]:
             return self._predict_one(row, node["left"])
         return self._predict_one(row, node["right"])
+
+    def _leaf_probabilities(self, row, node):
+        if "feature" not in node:
+            total = np.sum(node["counts"])
+            if total == 0:
+                return np.ones(len(self.classes)) / len(self.classes)
+            return node["counts"] / total
+        if row[node["feature"]] <= node["threshold"]:
+            return self._leaf_probabilities(row, node["left"])
+        return self._leaf_probabilities(row, node["right"])
